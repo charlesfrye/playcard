@@ -1,0 +1,1093 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VLM Playground</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #232734;
+  --border: #2e3348;
+  --text: #e4e6f0;
+  --text-dim: #8b8fa8;
+  --accent: #6c8cff;
+  --accent-hover: #8ba3ff;
+  --danger: #ff6b6b;
+  --success: #4ecdc4;
+  --radius: 10px;
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --mono: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, monospace;
+}
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  padding: 24px;
+}
+
+.app {
+  width: 100%;
+  max-width: 1200px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+header h1 {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  color: var(--accent);
+}
+
+.url-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 280px;
+  max-width: 600px;
+}
+
+.url-bar input {
+  flex: 1;
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 8px 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-dim);
+  outline: none;
+  transition: border-color .2s;
+}
+
+.url-bar input:focus { border-color: var(--accent); }
+
+.url-bar .status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--border);
+  transition: background .3s;
+}
+.url-bar .status-dot.ok { background: var(--success); }
+.url-bar .status-dot.err { background: var(--danger); }
+
+main {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  flex: 1;
+  min-height: 0;
+}
+
+@media (max-width: 800px) {
+  main { grid-template-columns: 1fr; }
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.card h2 {
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-dim);
+}
+
+/* --- System prompt --- */
+
+.system-input {
+  width: 100%;
+  min-height: 50px;
+  resize: vertical;
+  padding: 10px 14px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.5;
+  outline: none;
+  transition: border-color .2s;
+}
+.system-input:focus { border-color: var(--accent); }
+.system-input::placeholder { color: var(--text-dim); opacity: .5; }
+
+/* --- Image blocks --- */
+
+.image-blocks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  max-height: 460px;
+  overflow-y: auto;
+}
+
+.image-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px;
+  width: 200px;
+}
+
+.image-block .thumb {
+  width: 100%;
+  height: 140px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: #000;
+  flex-shrink: 0;
+  display: none;
+}
+.image-block .thumb.visible { display: block; }
+
+.image-block .thumb-placeholder {
+  width: 100%;
+  height: 140px;
+  border-radius: 6px;
+  border: 1px dashed var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  font-size: 28px;
+}
+
+.image-block .img-url {
+  width: 100%;
+  padding: 6px 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 11px;
+  outline: none;
+  transition: border-color .2s;
+}
+.image-block .img-url:focus { border-color: var(--accent); }
+
+.image-block .btn-row {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-icon {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background .2s, color .2s;
+  padding: 0;
+}
+.btn-icon:hover { color: var(--text); background: var(--surface2); }
+.btn-icon.danger:hover { color: var(--danger); }
+
+/* --- Structured output --- */
+
+.structured-select {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color .2s;
+}
+.structured-select:focus { border-color: var(--accent); }
+
+.structured-value {
+  width: 100%;
+  min-height: 80px;
+  resize: vertical;
+  padding: 10px 14px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.5;
+  outline: none;
+  transition: border-color .2s;
+}
+.structured-value:focus { border-color: var(--accent); }
+.structured-value::placeholder { color: var(--text-dim); opacity: .5; }
+
+/* --- Settings row --- */
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--surface2);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.settings-row label {
+  font-size: 13px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.settings-row input[type="range"] {
+  flex: 1;
+  accent-color: var(--accent);
+  height: 4px;
+}
+
+.settings-row .temp-value {
+  font-size: 13px;
+  color: var(--text);
+  font-family: var(--mono);
+  min-width: 36px;
+  text-align: right;
+}
+
+/* --- Prompt / buttons --- */
+
+.prompt-input {
+  width: 100%;
+  min-height: 100px;
+  resize: vertical;
+  padding: 12px 14px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+  outline: none;
+  transition: border-color .2s;
+}
+.prompt-input:focus { border-color: var(--accent); }
+.prompt-input::placeholder { color: var(--text-dim); opacity: .5; }
+
+.actions {
+  display: flex;
+  gap: 10px;
+}
+
+.btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: var(--radius);
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .2s, opacity .2s;
+}
+
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+
+.btn-ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
+.btn-ghost:hover { color: var(--text); border-color: var(--text-dim); }
+
+/* --- Response panel --- */
+
+.response-panel {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.response-area {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  min-height: 200px;
+}
+
+.response-area .placeholder {
+  color: var(--text-dim);
+  opacity: .4;
+}
+
+.response-area .streaming {
+  border-left: 2px solid var(--accent);
+  padding-left: 12px;
+  margin: 0;
+}
+
+.response-area h1 {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+
+.response-area h2.artist {
+  font-size: 16px;
+  font-weight: 400;
+  font-style: italic;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.response-area h3 {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 16px;
+}
+
+.response-area p {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text);
+}
+
+.loader {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+.loader.visible { display: flex; }
+
+.spinner {
+  width: 16px; height: 16px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.error-msg {
+  display: none;
+  padding: 12px;
+  background: rgba(255, 107, 107, 0.1);
+  border: 1px solid rgba(255, 107, 107, 0.3);
+  border-radius: var(--radius);
+  color: var(--danger);
+  font-size: 13px;
+  font-family: var(--mono);
+}
+.error-msg.visible { display: block; }
+
+/* --- Webcam modal --- */
+
+.webcam-modal {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.webcam-modal.visible { display: flex; }
+
+.webcam-modal-content {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 520px;
+  width: 90%;
+}
+
+.webcam-modal-content video {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: #000;
+}
+
+.webcam-controls {
+  display: flex;
+  gap: 10px;
+}
+
+/* --- Helpers for image actions --- */
+
+.image-actions {
+  display: flex;
+  gap: 10px;
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header>
+    <h1>VLM Playground</h1>
+    <div class="url-bar">
+      <span class="status-dot" id="statusDot" title="Connection status"></span>
+      <input
+        type="text"
+        id="backendUrl"
+        placeholder="https://your-backend-url.modal.direct"
+      >
+    </div>
+  </header>
+
+  <main>
+    <!-- Input panel -->
+    <div class="card">
+      <h2>System</h2>
+      <textarea class="system-input" id="systemPrompt" placeholder="Optional system prompt..."></textarea>
+
+      <h2>Images</h2>
+      <div class="image-blocks" id="imageBlocks"></div>
+      <div class="image-actions">
+        <button class="btn btn-ghost" id="addImageBtn">+ Add image</button>
+        <button class="btn btn-ghost" id="webcamBtn">&#128247; Webcam</button>
+      </div>
+
+      <h2>Prompt</h2>
+      <textarea class="prompt-input" id="prompt" placeholder="Ask something about the image...">What is this?</textarea>
+
+      <div class="settings-row">
+        <label>Temperature</label>
+        <input type="range" id="temperature" min="0" max="2" step="0.1" value="0.8">
+        <span class="temp-value" id="tempValue">0.8</span>
+      </div>
+
+      <h2>Structured Output</h2>
+      <select class="structured-select" id="structuredType">
+        <option value="none">None (free text)</option>
+        <option value="json_object">JSON Object</option>
+        <option value="json_schema">JSON Schema</option>
+        <option value="regex">Regex</option>
+        <option value="ebnf">EBNF Grammar</option>
+      </select>
+      <textarea class="structured-value" id="structuredValue" style="display:none;"
+        placeholder="Paste your JSON schema, regex, or EBNF grammar…"></textarea>
+
+      <div class="actions">
+        <button class="btn btn-primary" id="sendBtn">Send</button>
+        <button class="btn btn-ghost" id="clearBtn">Clear</button>
+      </div>
+    </div>
+
+    <!-- Response panel -->
+    <div class="card response-panel">
+      <h2>Response</h2>
+      <div class="loader" id="loader">
+        <div class="spinner"></div>
+        <span>Streaming response...</span>
+      </div>
+      <div class="error-msg" id="errorMsg"></div>
+      <div class="response-area" id="responseArea">
+        <span class="placeholder">Response will appear here...</span>
+      </div>
+    </div>
+  </main>
+
+  <div class="webcam-modal" id="webcamModal">
+    <div class="webcam-modal-content">
+      <video id="webcamVideo" autoplay playsinline muted></video>
+      <canvas id="webcamCanvas" style="display:none;"></canvas>
+      <div class="webcam-controls">
+        <button class="btn btn-primary" id="captureBtn">Capture</button>
+        <button class="btn btn-ghost" id="closeWebcamBtn">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const DEFAULT_URL = 'https://modal-labs-charles-dev--playcard-backend-vlmserver.us-west.modal.direct';
+
+const $ = (id) => document.getElementById(id);
+const backendUrl = $('backendUrl');
+const systemPrompt = $('systemPrompt');
+const imageBlocks = $('imageBlocks');
+const addImageBtn = $('addImageBtn');
+const promptEl = $('prompt');
+const temperature = $('temperature');
+const tempValue = $('tempValue');
+const sendBtn = $('sendBtn');
+const clearBtn = $('clearBtn');
+const responseArea = $('responseArea');
+const loader = $('loader');
+const errorMsg = $('errorMsg');
+const statusDot = $('statusDot');
+const structuredType = $('structuredType');
+const structuredValue = $('structuredValue');
+const webcamBtn = $('webcamBtn');
+const webcamModal = $('webcamModal');
+const webcamVideo = $('webcamVideo');
+const webcamCanvas = $('webcamCanvas');
+const captureBtn = $('captureBtn');
+const closeWebcamBtn = $('closeWebcamBtn');
+
+let images = [];
+let abortController = null;
+let webcamStream = null;
+
+// --- Backend URL persistence ---
+backendUrl.value = localStorage.getItem('vlmBackendUrl') || DEFAULT_URL;
+backendUrl.addEventListener('input', () => {
+  localStorage.setItem('vlmBackendUrl', backendUrl.value.trim());
+});
+
+// --- Temperature slider ---
+temperature.addEventListener('input', () => {
+  tempValue.textContent = parseFloat(temperature.value).toFixed(1);
+});
+
+// --- Structured output ---
+structuredType.addEventListener('change', () => {
+  const showValue = ['json_schema', 'regex', 'ebnf'].includes(structuredType.value);
+  structuredValue.style.display = showValue ? '' : 'none';
+});
+
+// --- Image block management ---
+
+function renderImageBlocks() {
+  imageBlocks.innerHTML = '';
+  images.forEach((img, i) => {
+    const block = document.createElement('div');
+    block.className = 'image-block';
+    block.setAttribute('data-index', i);
+
+    const thumb = document.createElement('img');
+    thumb.className = 'thumb';
+    if (img.url || img.dataUrl) {
+      thumb.src = img.dataUrl || img.url;
+      thumb.classList.add('visible');
+    }
+
+    const placeholder = document.createElement('div');
+    placeholder.className = 'thumb-placeholder';
+    placeholder.innerHTML = '&#128247;';
+    if (img.url || img.dataUrl) {
+      placeholder.style.display = 'none';
+    }
+
+    const urlInput = document.createElement('input');
+    urlInput.type = 'text';
+    urlInput.className = 'img-url';
+    urlInput.placeholder = 'Image URL or paste...';
+    urlInput.value = img.url || '';
+    urlInput.setAttribute('data-index', i);
+
+    const uploadBtn = document.createElement('button');
+    uploadBtn.className = 'btn-icon btn-upload';
+    uploadBtn.setAttribute('data-index', i);
+    uploadBtn.title = 'Upload file';
+    uploadBtn.innerHTML = '&#128206;';
+
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.className = 'img-file';
+    fileInput.accept = 'image/*';
+    fileInput.hidden = true;
+    fileInput.setAttribute('data-index', i);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'btn-icon danger btn-remove';
+    removeBtn.setAttribute('data-index', i);
+    removeBtn.title = 'Remove';
+    removeBtn.innerHTML = '&times;';
+
+    block.appendChild(thumb);
+    block.appendChild(placeholder);
+    block.appendChild(urlInput);
+
+    const btnRow = document.createElement('div');
+    btnRow.className = 'btn-row';
+    btnRow.appendChild(uploadBtn);
+    btnRow.appendChild(fileInput);
+    btnRow.appendChild(removeBtn);
+    block.appendChild(btnRow);
+
+    imageBlocks.appendChild(block);
+  });
+}
+
+function setThumb(index) {
+  const block = imageBlocks.querySelector(`[data-index="${index}"]`);
+  if (!block) return;
+  const thumb = block.querySelector('.thumb');
+  const placeholder = block.querySelector('.thumb-placeholder');
+  const img = images[index];
+  if (img.url || img.dataUrl) {
+    thumb.src = img.dataUrl || img.url;
+    thumb.classList.add('visible');
+    placeholder.style.display = 'none';
+  } else {
+    thumb.classList.remove('visible');
+    placeholder.style.display = '';
+    thumb.src = '';
+  }
+}
+
+// Event delegation for image blocks
+imageBlocks.addEventListener('input', (e) => {
+  if (!e.target.classList.contains('img-url')) return;
+  const idx = parseInt(e.target.getAttribute('data-index'));
+  images[idx].url = e.target.value.trim();
+  images[idx].dataUrl = null;
+  setThumb(idx);
+});
+
+imageBlocks.addEventListener('click', (e) => {
+  if (e.target.classList.contains('btn-upload') || e.target.closest('.btn-upload')) {
+    const btn = e.target.classList.contains('btn-upload') ? e.target : e.target.closest('.btn-upload');
+    const idx = parseInt(btn.getAttribute('data-index'));
+    const fileInput = imageBlocks.querySelector(`.img-file[data-index="${idx}"]`);
+    if (fileInput) fileInput.click();
+  }
+  if (e.target.classList.contains('btn-remove') || e.target.closest('.btn-remove')) {
+    const btn = e.target.classList.contains('btn-remove') ? e.target : e.target.closest('.btn-remove');
+    const idx = parseInt(btn.getAttribute('data-index'));
+    images.splice(idx, 1);
+    renderImageBlocks();
+  }
+});
+
+imageBlocks.addEventListener('change', (e) => {
+  if (!e.target.classList.contains('img-file')) return;
+  const idx = parseInt(e.target.getAttribute('data-index'));
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    images[idx].dataUrl = ev.target.result;
+    images[idx].url = '';
+    setThumb(idx);
+  };
+  reader.readAsDataURL(file);
+});
+
+addImageBtn.addEventListener('click', () => {
+  images.push({ url: '', dataUrl: null });
+  renderImageBlocks();
+});
+
+// --- Webcam ---
+webcamBtn.addEventListener('click', openWebcam);
+captureBtn.addEventListener('click', captureFrame);
+closeWebcamBtn.addEventListener('click', closeWebcam);
+webcamModal.addEventListener('click', (e) => {
+  if (e.target === webcamModal) closeWebcam();
+});
+
+async function openWebcam() {
+  try {
+    webcamStream = await navigator.mediaDevices.getUserMedia({
+      video: { aspectRatio: 4 / 3 }
+    });
+    webcamVideo.srcObject = webcamStream;
+    webcamModal.classList.add('visible');
+  } catch (e) {
+    showError('Could not access webcam: ' + e.message);
+  }
+}
+
+function closeWebcam() {
+  if (webcamStream) {
+    webcamStream.getTracks().forEach(t => t.stop());
+    webcamStream = null;
+  }
+  webcamVideo.srcObject = null;
+  webcamModal.classList.remove('visible');
+}
+
+function captureFrame() {
+  if (!webcamStream) return;
+  const v = webcamVideo;
+  const c = webcamCanvas;
+  c.width = v.videoWidth;
+  c.height = v.videoHeight;
+  c.getContext('2d').drawImage(v, 0, 0);
+  const dataUrl = c.toDataURL('image/jpeg', 0.9);
+  images.push({ url: '', dataUrl });
+  renderImageBlocks();
+  closeWebcam();
+}
+
+// --- Clipboard paste ---
+document.addEventListener('paste', (e) => {
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  for (const item of items) {
+    if (item.type.startsWith('image/')) {
+      e.preventDefault();
+      const file = item.getAsFile();
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        images.push({ url: '', dataUrl: ev.target.result });
+        renderImageBlocks();
+      };
+      reader.readAsDataURL(file);
+      return;
+    }
+  }
+});
+
+// --- Drag and drop on image blocks area ---
+imageBlocks.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  imageBlocks.style.borderColor = 'var(--accent)';
+});
+imageBlocks.addEventListener('dragleave', () => {
+  imageBlocks.style.borderColor = '';
+});
+imageBlocks.addEventListener('drop', (e) => {
+  e.preventDefault();
+  imageBlocks.style.borderColor = '';
+  const file = e.dataTransfer.files[0];
+  if (!file || !file.type.startsWith('image/')) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    images.push({ url: '', dataUrl: ev.target.result });
+    renderImageBlocks();
+  };
+  reader.readAsDataURL(file);
+});
+
+// --- Send ---
+sendBtn.addEventListener('click', sendRequest);
+
+promptEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+    e.preventDefault();
+    sendRequest();
+  }
+});
+
+function getImagePayloads() {
+  return images
+    .filter(img => img.url || img.dataUrl)
+    .map(img => ({ type: 'image_url', image_url: { url: img.dataUrl || img.url } }));
+}
+
+async function sendRequest() {
+  const imagePayloads = getImagePayloads();
+  if (imagePayloads.length === 0) {
+    showError('Please provide at least one image.');
+    return;
+  }
+  const prompt = promptEl.value.trim();
+  if (!prompt) {
+    showError('Please enter a prompt.');
+    return;
+  }
+
+  const url = backendUrl.value.trim();
+  if (!url) {
+    showError('Please set a backend URL.');
+    return;
+  }
+
+  const stType = structuredType.value;
+  if (stType !== 'none' && stType !== 'json_object' && !structuredValue.value.trim()) {
+    showError('Please provide a value for the structured output constraint.');
+    return;
+  }
+  if (stType === 'json_schema') {
+    try { JSON.parse(structuredValue.value.trim()); } catch (e) {
+      showError('Invalid JSON schema: ' + e.message);
+      return;
+    }
+  }
+
+  const RETRY_TIMEOUT_MS = 5 * 60 * 1000;
+  const BASE_DELAY_MS = 1000;
+  const MAX_DELAY_MS = 5000;
+
+  abortController = new AbortController();
+
+  sendBtn.disabled = true;
+  responseArea.innerHTML = '<div class="streaming"></div>';
+  errorMsg.classList.remove('visible');
+  loader.classList.add('visible');
+  setStatus('');
+
+  const streamingEl = responseArea.querySelector('.streaming');
+  const loaderText = loader.querySelector('span');
+  const deadline = Date.now() + RETRY_TIMEOUT_MS;
+  let attempt = 0;
+
+  const messages = [];
+  if (systemPrompt.value.trim()) {
+    messages.push({ role: 'system', content: systemPrompt.value.trim() });
+  }
+  messages.push({
+    role: 'user',
+    content: [...imagePayloads, { type: 'text', text: prompt }]
+  });
+
+  const body = {
+    messages,
+    stream: true,
+    top_k: 20,
+    temperature: parseFloat(temperature.value),
+  };
+
+  if (stType === 'json_object') {
+    body.response_format = { type: 'json_object' };
+  } else if (stType === 'json_schema') {
+    body.response_format = {
+      type: 'json_schema',
+      json_schema: { name: 'output', strict: true, schema: JSON.parse(structuredValue.value.trim()) }
+    };
+  } else if (stType === 'regex') {
+    body.extra_body = { regex: structuredValue.value.trim() };
+  } else if (stType === 'ebnf') {
+    body.extra_body = { ebnf: structuredValue.value.trim() };
+  }
+
+  while (true) {
+    attempt++;
+    try {
+      const resp = await fetch(`${url}/v1/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'text/event-stream',
+        },
+        body: JSON.stringify(body),
+        signal: abortController.signal,
+      });
+
+      loaderText.textContent = 'Streaming response...';
+
+      if (resp.status === 503) {
+        if (Date.now() >= deadline) {
+          const errText = await resp.text().catch(() => 'Unknown error');
+          throw new Error(`HTTP 503: retry deadline exceeded (${errText.slice(0, 200)})`);
+        }
+        const delay = Math.min(BASE_DELAY_MS * Math.pow(2, attempt - 1), MAX_DELAY_MS);
+        loaderText.textContent = `Server not ready, retrying in ${(delay / 1000).toFixed(0)}s...`;
+        setStatus('');
+        try {
+          await sleep(delay, abortController.signal);
+        } catch (e) {
+          if (e.name === 'AbortError') throw e;
+        }
+        continue;
+      }
+
+      if (!resp.ok) {
+        const errText = await resp.text().catch(() => 'Unknown error');
+        throw new Error(`HTTP ${resp.status}: ${errText.slice(0, 300)}`);
+      }
+
+      setStatus('ok');
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let streamedAnything = false;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || !trimmed.startsWith('data:')) continue;
+
+          const data = trimmed.slice(5).trim();
+          if (data === '[DONE]') continue;
+
+          try {
+            const parsed = JSON.parse(data);
+            const content = parsed?.choices?.[0]?.delta?.content;
+            if (content) {
+              streamingEl.textContent += content;
+              streamedAnything = true;
+            }
+          } catch (_) {}
+        }
+      }
+
+      if (!streamedAnything && !streamingEl.textContent) {
+        streamingEl.textContent = '(No content returned)';
+      }
+
+      tryFormatOutput(streamingEl);
+
+      break;
+
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        streamingEl.textContent += '\n\n[Cancelled]';
+        break;
+      }
+
+      if (err instanceof TypeError) {
+        if (Date.now() >= deadline) {
+          showError('Retry deadline exceeded after 5 minutes of retries (server unavailable).');
+          setStatus('err');
+          break;
+        }
+        const delay = Math.min(BASE_DELAY_MS * Math.pow(2, attempt - 1), MAX_DELAY_MS);
+        loaderText.textContent = `Server unreachable, retrying in ${(delay / 1000).toFixed(0)}s...`;
+        setStatus('');
+        try {
+          await sleep(delay, abortController.signal);
+        } catch (sleepErr) {
+          if (sleepErr.name === 'AbortError') {
+            streamingEl.textContent += '\n\n[Cancelled]';
+            break;
+          }
+        }
+        continue;
+      }
+
+      showError(err.message);
+      setStatus('err');
+      break;
+    }
+  }
+
+  loader.classList.remove('visible');
+  sendBtn.disabled = false;
+  abortController = null;
+}
+
+// --- Clear ---
+clearBtn.addEventListener('click', () => {
+  if (abortController) {
+    abortController.abort();
+  }
+  closeWebcam();
+  systemPrompt.value = '';
+  images = [];
+  renderImageBlocks();
+  promptEl.value = '';
+  temperature.value = '0.8';
+  tempValue.textContent = '0.8';
+  structuredType.value = 'none';
+  structuredValue.value = '';
+  structuredValue.style.display = 'none';
+  responseArea.innerHTML = '<span class="placeholder">Response will appear here...</span>';
+  errorMsg.classList.remove('visible');
+  loader.classList.remove('visible');
+  sendBtn.disabled = false;
+  setStatus('');
+});
+
+// --- Helpers ---
+function sleep(ms, signal) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(resolve, ms);
+    if (signal) {
+      signal.addEventListener('abort', () => {
+        clearTimeout(timer);
+        reject(Object.assign(new Error('Aborted'), { name: 'AbortError' }));
+      }, { once: true });
+    }
+  });
+}
+
+function showError(msg) {
+  errorMsg.textContent = msg;
+  errorMsg.classList.add('visible');
+  loader.classList.remove('visible');
+  sendBtn.disabled = false;
+}
+
+function setStatus(state) {
+  statusDot.classList.remove('ok', 'err');
+  if (state) statusDot.classList.add(state);
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function tryFormatOutput(el) {
+  const text = el.textContent.trim();
+  if (!text) return;
+  try {
+    const data = JSON.parse(text);
+    if (data && typeof data === 'object' && data.title && data.artist_name && data.medium && data.description) {
+      el.classList.remove('streaming');
+      el.innerHTML =
+        '<h1>' + escapeHtml(data.title) + '</h1>' +
+        '<h2 class="artist">' + escapeHtml(data.artist_name) + '</h2>' +
+        '<h3>' + escapeHtml(data.medium) + '</h3>' +
+        '<p>' + escapeHtml(data.description).replace(/\n/g, '<br>') + '</p>';
+    }
+  } catch (_) {}
+}
+
+// --- Init ---
+images.push({ url: '', dataUrl: null });
+renderImageBlocks();
+</script>
+</body>
+</html>

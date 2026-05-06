@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Video VLM</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #232734;
+  --border: #2e3348;
+  --text: #e4e6f0;
+  --text-dim: #8b8fa8;
+  --accent: #6c8cff;
+  --accent-hover: #8ba3ff;
+  --danger: #ff6b6b;
+  --success: #4ecdc4;
+  --radius: 10px;
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --mono: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, monospace;
+}
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  padding: 24px;
+}
+
+.app {
+  width: 100%;
+  max-width: 1200px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  height: calc(100vh - 48px);
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+header h1 {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  color: var(--accent);
+}
+
+.url-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 280px;
+  max-width: 600px;
+}
+
+.url-bar input {
+  flex: 1;
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 8px 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-dim);
+  outline: none;
+  transition: border-color .2s;
+}
+
+.url-bar input:focus { border-color: var(--accent); }
+
+.url-bar .status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--border);
+  transition: background .3s;
+}
+.url-bar .status-dot.ok { background: var(--success); }
+.url-bar .status-dot.err { background: var(--danger); }
+
+main {
+  display: grid;
+  grid-template-columns: 420px 1fr;
+  gap: 20px;
+  flex: 1;
+  min-height: 0;
+}
+
+@media (max-width: 860px) {
+  main { grid-template-columns: 1fr; }
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.control-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow: hidden;
+}
+
+.control-panel h2 {
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-dim);
+}
+
+/* --- Webcam preview --- */
+
+.webcam-wrap {
+  position: relative;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: #000;
+  overflow: hidden;
+  aspect-ratio: 4 / 3;
+}
+
+.webcam-wrap video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.webcam-wrap .webcam-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  font-size: 14px;
+  background: rgba(0,0,0,0.6);
+  pointer-events: none;
+  transition: opacity .3s;
+}
+
+.webcam-wrap .webcam-overlay.hidden { opacity: 0; }
+
+.webcam-wrap .recording-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(255, 107, 107, 0.9);
+  color: #fff;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .3s;
+}
+
+.webcam-wrap .recording-badge.visible { opacity: 1; }
+
+.recording-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #fff;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* --- Controls --- */
+
+.controls-row {
+  display: flex;
+  gap: 10px;
+}
+
+.btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: var(--radius);
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .2s, opacity .2s;
+}
+
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-danger:hover { background: #ff8787; }
+.btn-danger:disabled { opacity: .4; cursor: not-allowed; }
+
+.btn-ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
+.btn-ghost:hover { color: var(--text); border-color: var(--text-dim); }
+
+/* --- Interval slider --- */
+
+.interval-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--surface2);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.interval-row label {
+  font-size: 13px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.interval-row input[type="range"] {
+  flex: 1;
+  accent-color: var(--accent);
+  height: 4px;
+}
+
+.interval-row .interval-value {
+  font-size: 13px;
+  color: var(--text);
+  font-family: var(--mono);
+  min-width: 52px;
+  text-align: right;
+}
+
+/* --- Prompt --- */
+
+.prompt-input {
+  width: 100%;
+  min-height: 80px;
+  resize: vertical;
+  padding: 12px 14px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+  outline: none;
+  transition: border-color .2s;
+}
+.prompt-input:focus { border-color: var(--accent); }
+.prompt-input::placeholder { color: var(--text-dim); opacity: .5; }
+
+/* --- Chunk counter --- */
+
+.chunk-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-dim);
+  min-height: 20px;
+}
+
+/* --- Response cards --- */
+
+.response-panel {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.response-panel h2 {
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+  margin-bottom: 4px;
+}
+
+.card-stack {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+
+.card-stack .empty-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  opacity: .4;
+  font-size: 14px;
+  min-height: 200px;
+}
+
+.response-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.response-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: rgba(0,0,0,0.2);
+  border-bottom: 1px solid var(--border);
+  gap: 10px;
+}
+
+.response-card-header .meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-dim);
+  font-family: var(--mono);
+}
+
+.response-card-body {
+  padding: 14px;
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  min-height: 40px;
+}
+
+.response-card.streaming .response-card-body {
+  border-left: 2px solid var(--accent);
+  padding-left: 18px;
+}
+
+.response-card-header .spinner {
+  width: 14px; height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.response-card-header .status-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.status-label.streaming { color: var(--accent); }
+.status-label.done { color: var(--success); }
+.status-label.error { color: var(--danger); }
+
+.response-card .dismiss-btn {
+  width: 24px; height: 24px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: color .2s, background .2s;
+}
+.response-card .dismiss-btn:hover { color: var(--danger); background: rgba(255,107,107,0.1); }
+
+.response-card .error-text {
+  color: var(--danger);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header>
+    <h1>Video VLM</h1>
+    <div class="url-bar">
+      <span class="status-dot" id="statusDot" title="Connection status"></span>
+      <input
+        type="text"
+        id="backendUrl"
+        placeholder="https://your-backend-url.modal.direct"
+      >
+    </div>
+  </header>
+
+  <main>
+    <div class="card control-panel" id="controlPanel">
+      <h2>Camera</h2>
+      <div class="webcam-wrap" id="webcamWrap">
+        <video id="webcamVideo" autoplay playsinline muted></video>
+        <div class="webcam-overlay" id="webcamOverlay">Camera off</div>
+        <div class="recording-badge" id="recordingBadge">
+          <div class="recording-dot"></div>
+          <span>REC</span>
+        </div>
+      </div>
+
+      <div class="controls-row">
+        <button class="btn btn-primary" id="startBtn">Start</button>
+        <button class="btn btn-danger" id="stopBtn" disabled>Stop</button>
+      </div>
+
+      <div class="interval-row">
+        <label>Capture every</label>
+        <input type="range" id="captureInterval" min="2" max="10" step="1" value="4">
+        <span class="interval-value" id="intervalValue">4s</span>
+      </div>
+
+      <h2>Prompt</h2>
+      <textarea class="prompt-input" id="prompt" placeholder="What do you see in this video?">What do you see?</textarea>
+
+      <div class="chunk-info" id="chunkInfo"></div>
+    </div>
+
+    <div class="card response-panel" id="responsePanel">
+      <h2>Responses</h2>
+      <div class="card-stack" id="cardStack">
+        <div class="empty-state">Capture a video to see responses...</div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+const DEFAULT_URL = 'https://modal-labs-charles-dev--playcard-backend-vlmserver.us-west.modal.direct';
+const MIN_CHUNK_SIZE = 1024;
+const MAX_CARDS = 50;
+const RETRY_TIMEOUT_MS = 5 * 60 * 1000;
+const BASE_DELAY_MS = 1000;
+const MAX_DELAY_MS = 5000;
+
+const $ = (id) => document.getElementById(id);
+
+const backendUrl = $('backendUrl');
+const statusDot = $('statusDot');
+const webcamWrap = $('webcamWrap');
+const webcamVideo = $('webcamVideo');
+const webcamOverlay = $('webcamOverlay');
+const recordingBadge = $('recordingBadge');
+const startBtn = $('startBtn');
+const stopBtn = $('stopBtn');
+const captureInterval = $('captureInterval');
+const intervalValue = $('intervalValue');
+const promptEl = $('prompt');
+const chunkInfo = $('chunkInfo');
+const cardStack = $('cardStack');
+
+let webcamStream = null;
+let mediaRecorder = null;
+let chunkCount = 0;
+let skippedFirstChunk = false;
+
+// --- Backend URL persistence ---
+
+backendUrl.value = localStorage.getItem('vlmBackendUrl') || DEFAULT_URL;
+backendUrl.addEventListener('input', () => {
+  localStorage.setItem('vlmBackendUrl', backendUrl.value.trim());
+});
+
+// --- Interval slider ---
+
+captureInterval.addEventListener('input', () => {
+  intervalValue.textContent = captureInterval.value + 's';
+});
+
+// --- Video MIME type detection ---
+
+function getVideoMimeType() {
+  const codecs = [
+    'video/webm;codecs=vp9',
+    'video/webm;codecs=vp8',
+    'video/webm',
+    'video/mp4',
+  ];
+  for (const m of codecs) {
+    if (MediaRecorder.isTypeSupported(m)) return m;
+  }
+  return '';
+}
+
+// --- Start / Stop ---
+
+startBtn.addEventListener('click', startCapture);
+stopBtn.addEventListener('click', stopCapture);
+
+async function startCapture() {
+  try {
+    webcamStream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 640 }, height: { ideal: 480 }, aspectRatio: 4 / 3 },
+    });
+  } catch (e) {
+    alert('Could not access webcam: ' + e.message);
+    return;
+  }
+
+  webcamVideo.srcObject = webcamStream;
+  webcamOverlay.classList.add('hidden');
+
+  const mimeType = getVideoMimeType();
+  if (!mimeType) {
+    alert('No supported video MIME type found for MediaRecorder.');
+    stopMediaTracks();
+    return;
+  }
+
+  const timeslice = parseInt(captureInterval.value) * 1000;
+
+  mediaRecorder = new MediaRecorder(webcamStream, {
+    mimeType,
+    videoBitsPerSecond: 500000,
+  });
+
+  skippedFirstChunk = false;
+
+  mediaRecorder.ondataavailable = (event) => {
+    if (event.data.size < MIN_CHUNK_SIZE) {
+      skippedFirstChunk = true;
+      return;
+    }
+    if (!skippedFirstChunk) {
+      skippedFirstChunk = true;
+      return;
+    }
+
+    chunkCount++;
+    const count = chunkCount;
+    chunkInfo.textContent = 'Sent ' + count + ' chunk' + (count !== 1 ? 's' : '');
+    processChunk(event.data, count);
+  };
+
+  mediaRecorder.onerror = (event) => {
+    console.error('MediaRecorder error:', event.error);
+  };
+
+  mediaRecorder.start(timeslice);
+
+  recordingBadge.classList.add('visible');
+  startBtn.disabled = true;
+  stopBtn.disabled = false;
+  captureInterval.disabled = true;
+  setStatus('');
+}
+
+function stopCapture() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop();
+    mediaRecorder = null;
+  }
+  stopMediaTracks();
+  webcamOverlay.classList.remove('hidden');
+  recordingBadge.classList.remove('visible');
+  startBtn.disabled = false;
+  stopBtn.disabled = true;
+  captureInterval.disabled = false;
+  skippedFirstChunk = false;
+}
+
+function stopMediaTracks() {
+  if (webcamStream) {
+    webcamStream.getTracks().forEach((t) => t.stop());
+    webcamStream = null;
+    webcamVideo.srcObject = null;
+  }
+}
+
+// --- Chunk processing ---
+
+function processChunk(blob, count) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    const dataUrl = reader.result;
+    sendVideoChunk(dataUrl, count);
+  };
+  reader.readAsDataURL(blob);
+}
+
+// --- Response card management ---
+
+function createCard(count) {
+  const card = document.createElement('div');
+  card.className = 'response-card streaming';
+  card.id = 'card-' + count;
+
+  const header = document.createElement('div');
+  header.className = 'response-card-header';
+
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+
+  const spinner = document.createElement('div');
+  spinner.className = 'spinner';
+
+  const statusLabel = document.createElement('span');
+  statusLabel.className = 'status-label streaming';
+  statusLabel.textContent = 'Streaming';
+
+  const now = new Date();
+  const time = document.createElement('span');
+  time.textContent = now.toLocaleTimeString();
+
+  meta.appendChild(spinner);
+  meta.appendChild(statusLabel);
+  meta.appendChild(time);
+
+  const dismissBtn = document.createElement('button');
+  dismissBtn.className = 'dismiss-btn';
+  dismissBtn.title = 'Dismiss';
+  dismissBtn.innerHTML = '&times;';
+  dismissBtn.addEventListener('click', () => {
+    removeCard(card);
+  });
+
+  header.appendChild(meta);
+  header.appendChild(dismissBtn);
+
+  const body = document.createElement('div');
+  body.className = 'response-card-body';
+
+  card.appendChild(header);
+  card.appendChild(body);
+
+  prependCard(card);
+  enforceMaxCards();
+
+  return card;
+}
+
+function prependCard(card) {
+  const emptyState = cardStack.querySelector('.empty-state');
+  if (emptyState) emptyState.remove();
+
+  if (cardStack.firstChild) {
+    cardStack.insertBefore(card, cardStack.firstChild);
+  } else {
+    cardStack.appendChild(card);
+  }
+}
+
+function removeCard(card) {
+  card.remove();
+  if (cardStack.children.length === 0) {
+    const emptyState = document.createElement('div');
+    emptyState.className = 'empty-state';
+    emptyState.textContent = 'Capture a video to see responses...';
+    cardStack.appendChild(emptyState);
+  }
+}
+
+function enforceMaxCards() {
+  while (cardStack.querySelectorAll('.response-card').length > MAX_CARDS) {
+    const cards = cardStack.querySelectorAll('.response-card');
+    const lastCard = cards[cards.length - 1];
+    removeCard(lastCard);
+  }
+}
+
+function setCardStreaming(card, active) {
+  if (active) {
+    card.classList.add('streaming');
+    const label = card.querySelector('.status-label');
+    const spinner = card.querySelector('.spinner');
+    if (label) { label.textContent = 'Streaming'; label.className = 'status-label streaming'; }
+    if (spinner) spinner.style.display = '';
+  } else {
+    card.classList.remove('streaming');
+    const spinner = card.querySelector('.spinner');
+    if (spinner) spinner.style.display = 'none';
+  }
+}
+
+function setCardDone(card) {
+  card.classList.remove('streaming');
+  const label = card.querySelector('.status-label');
+  const spinner = card.querySelector('.spinner');
+  if (label) { label.textContent = 'Done'; label.className = 'status-label done'; }
+  if (spinner) spinner.style.display = 'none';
+}
+
+function setCardError(card, msg) {
+  card.classList.remove('streaming');
+  const label = card.querySelector('.status-label');
+  const spinner = card.querySelector('.spinner');
+  if (label) { label.textContent = 'Error'; label.className = 'status-label error'; }
+  if (spinner) spinner.style.display = 'none';
+  const body = card.querySelector('.response-card-body');
+  if (body) {
+    body.innerHTML = '<span class="error-text">' + escapeHtml(msg) + '</span>';
+  }
+}
+
+// --- Send video chunk to VLM ---
+
+async function sendVideoChunk(dataUrl, count) {
+  const url = backendUrl.value.trim();
+  if (!url) {
+    const card = createCard(count);
+    setCardError(card, 'No backend URL configured.');
+    return;
+  }
+
+  const prompt = promptEl.value.trim();
+  if (!prompt) {
+    const card = createCard(count);
+    setCardError(card, 'Prompt is empty.');
+    return;
+  }
+
+  const card = createCard(count);
+  const bodyEl = card.querySelector('.response-card-body');
+  const abortController = new AbortController();
+
+  const messages = [{
+    role: 'user',
+    content: [
+      { type: 'video_url', video_url: { url: dataUrl } },
+      { type: 'text', text: prompt }
+    ],
+  }];
+
+  const body = {
+    messages,
+    stream: true,
+    top_k: 20,
+    temperature: 0.8,
+  };
+
+  const deadline = Date.now() + RETRY_TIMEOUT_MS;
+  let attempt = 0;
+
+  while (true) {
+    attempt++;
+    try {
+      const resp = await fetch(`${url}/v1/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'text/event-stream',
+        },
+        body: JSON.stringify(body),
+        signal: abortController.signal,
+      });
+
+      if (resp.status === 503) {
+        if (Date.now() >= deadline) {
+          const errText = await resp.text().catch(() => 'Unknown error');
+          throw new Error('HTTP 503: retry deadline exceeded (' + errText.slice(0, 200) + ')');
+        }
+        const delay = Math.min(BASE_DELAY_MS * Math.pow(2, attempt - 1), MAX_DELAY_MS);
+        try {
+          await sleep(delay, abortController.signal);
+        } catch (e) {
+          if (e.name === 'AbortError') throw e;
+        }
+        continue;
+      }
+
+      if (!resp.ok) {
+        const errText = await resp.text().catch(() => 'Unknown error');
+        throw new Error('HTTP ' + resp.status + ': ' + errText.slice(0, 300));
+      }
+
+      setStatus('ok');
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let contentReceived = false;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || !trimmed.startsWith('data:')) continue;
+
+          const data = trimmed.slice(5).trim();
+          if (data === '[DONE]') continue;
+
+          try {
+            const parsed = JSON.parse(data);
+            const content = parsed?.choices?.[0]?.delta?.content;
+            if (content) {
+              bodyEl.textContent += content;
+              contentReceived = true;
+            }
+          } catch (_) {}
+        }
+      }
+
+      if (!contentReceived && !bodyEl.textContent) {
+        bodyEl.textContent = '(No content returned)';
+      }
+
+      setCardDone(card);
+      break;
+
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        bodyEl.textContent += '\n\n[Cancelled]';
+        setCardDone(card);
+        break;
+      }
+
+      if (err instanceof TypeError) {
+        if (Date.now() >= deadline) {
+          setCardError(card, 'Retry deadline exceeded after 5 minutes (server unavailable).');
+          setStatus('err');
+          break;
+        }
+        const delay = Math.min(BASE_DELAY_MS * Math.pow(2, attempt - 1), MAX_DELAY_MS);
+        try {
+          await sleep(delay, abortController.signal);
+        } catch (sleepErr) {
+          if (sleepErr.name === 'AbortError') {
+            bodyEl.textContent += '\n\n[Cancelled]';
+            setCardDone(card);
+            break;
+          }
+        }
+        continue;
+      }
+
+      setCardError(card, err.message);
+      setStatus('err');
+      break;
+    }
+  }
+}
+
+// --- Helpers ---
+
+function sleep(ms, signal) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(resolve, ms);
+    if (signal) {
+      signal.addEventListener('abort', () => {
+        clearTimeout(timer);
+        reject(Object.assign(new Error('Aborted'), { name: 'AbortError' }));
+      }, { once: true });
+    }
+  });
+}
+
+function setStatus(state) {
+  statusDot.classList.remove('ok', 'err');
+  if (state) statusDot.classList.add(state);
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+</script>
+</body>
+</html>
