@@ -51,32 +51,6 @@ header h1 {
   color: var(--accent);
 }
 
-.tab-bar {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.tab {
-  padding: 8px 16px;
-  border: none;
-  border-radius: var(--radius);
-  font-family: var(--font);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  background: var(--surface);
-  color: var(--text-dim);
-  transition: background .2s, color .2s;
-}
-
-.tab:hover { color: var(--text); }
-
-.tab.active {
-  background: var(--accent);
-  color: #fff;
-}
-
 .url-bar {
   display: flex;
   align-items: center;

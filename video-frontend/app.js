@@ -18,7 +18,6 @@ const startBtn = $('startBtn');
 const stopBtn = $('stopBtn');
 const captureInterval = $('captureInterval');
 const intervalValue = $('intervalValue');
-const intervalRow = $('intervalRow');
 const promptEl = $('prompt');
 const statusInfo = $('statusInfo');
 const cardStack = $('cardStack');
@@ -28,22 +27,6 @@ let webcamStream = null;
 let captureTimer = null;
 let frameBuffer = [];
 let requestId = 0;
-let activeTab = 'dashboard';
-
-// --- Tabs ---
-
-const tabBtns = document.querySelectorAll('.tab');
-
-tabBtns.forEach((btn) => {
-  btn.addEventListener('click', () => {
-    const tab = btn.dataset.tab;
-    if (tab === activeTab) return;
-    stopCapture();
-    activeTab = tab;
-    tabBtns.forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
-    intervalRow.style.display = tab === 'dashboard' ? '' : 'none';
-  });
-});
 
 // --- Backend URL persistence ---
 
@@ -90,9 +73,7 @@ async function startCapture() {
   frameBuffer = [];
   requestId = 0;
 
-  const intervalMs = activeTab === 'dashboard'
-    ? parseInt(captureInterval.value) * 1000
-    : 4000;
+  const intervalMs = parseInt(captureInterval.value) * 1000;
   const canvas = $('webcamCanvas');
   const ctx = canvas.getContext('2d');
 
