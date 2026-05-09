@@ -24,8 +24,10 @@ N_GPUS = 1
 HF_CACHE_VOL = modal.Volume.from_name("huggingface-cache", create_if_missing=True)
 HF_CACHE_PATH = "/root/.cache/huggingface"
 
+hf_secret = modal.Secret.from_name("huggingface-secret")
+
 DG_CACHE_VOL = modal.Volume.from_name("deepgemm-cache", create_if_missing=True)
-DG_CACHE_PATH = "/root/.cache/deepgemm"
+DG_CACHE_PATH = "/root/.cache/deep_gemm"
 
 sglang_image = sglang_image.env(
     {
@@ -53,6 +55,7 @@ def compile_deep_gemm():
 sglang_image = sglang_image.run_function(
     compile_deep_gemm,
     volumes={DG_CACHE_PATH: DG_CACHE_VOL, HF_CACHE_PATH: HF_CACHE_VOL},
+    secrets=[hf_secret],
     gpu=GPU,
 )
 
@@ -68,6 +71,7 @@ app = modal.App(name="playcard-backend")
     image=sglang_image,
     gpu=GPU,
     volumes={HF_CACHE_PATH: HF_CACHE_VOL, DG_CACHE_PATH: DG_CACHE_VOL},
+    secrets=[hf_secret],
     timeout=15 * MINUTES,
     scaledown_window=20 * MINUTES,
     region="us-west",
