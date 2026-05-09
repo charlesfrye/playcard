@@ -59,6 +59,8 @@ var promptEl = $('promptEl');
 var structuredToggle = $('structuredToggle');
 var captureRate = $('captureRate');
 var captureRateValue = $('captureRateValue');
+var cooldownRate = $('cooldownRate');
+var cooldownRateValue = $('cooldownRateValue');
 var backendUrl = $('backendUrl');
 
 // State
@@ -71,6 +73,10 @@ var displayedRequestId = 0;
 var currentAbortController = null;
 var lastResponseTime = null;
 var isRunning = false;
+var cooldownMs = 15000;
+var lastDisplayTime = null;
+var pendingResponse = null;
+var cooldownTimer = null;
 
 // Persistence
 
@@ -79,6 +85,9 @@ function loadSettings() {
   structuredToggle.checked = localStorage.getItem('playcard-structured') !== 'false';
   captureRate.value = parseInt(localStorage.getItem('playcard-captureRate'), 10) || 4;
   captureRateValue.textContent = captureRate.value + 's';
+  cooldownRate.value = parseInt(localStorage.getItem('playcard-cooldown'), 10) || 15;
+  cooldownRateValue.textContent = cooldownRate.value + 's';
+  cooldownMs = cooldownRate.value * 1000;
   backendUrl.value = localStorage.getItem('playcard-backendUrl') || DEFAULT_URL;
 }
 
@@ -86,6 +95,8 @@ function saveSettings() {
   localStorage.setItem('playcard-prompt', promptEl.value);
   localStorage.setItem('playcard-structured', structuredToggle.checked);
   localStorage.setItem('playcard-captureRate', captureRate.value);
+  localStorage.setItem('playcard-cooldown', cooldownRate.value);
+  cooldownMs = cooldownRate.value * 1000;
   localStorage.setItem('playcard-backendUrl', backendUrl.value.trim());
 }
 
@@ -93,7 +104,11 @@ captureRate.addEventListener('input', function () {
   captureRateValue.textContent = captureRate.value + 's';
 });
 
-[promptEl, structuredToggle, captureRate, backendUrl].forEach(function (el) {
+cooldownRate.addEventListener('input', function () {
+  cooldownRateValue.textContent = cooldownRate.value + 's';
+});
+
+[promptEl, structuredToggle, captureRate, cooldownRate, backendUrl].forEach(function (el) {
   el.addEventListener('input', saveSettings);
   el.addEventListener('change', saveSettings);
 });
@@ -121,6 +136,10 @@ function startCapture() {
     displayedRequestId = 0;
     lastResponseTime = null;
     isRunning = true;
+    cooldownMs = cooldownRate.value * 1000;
+    lastDisplayTime = null;
+    pendingResponse = null;
+    if (cooldownTimer) { clearTimeout(cooldownTimer); cooldownTimer = null; }
 
     var intervalMs = parseInt(captureRate.value, 10) * 1000;
     var canvas = webcamCanvas;
@@ -180,6 +199,8 @@ function stopCapture() {
 
   webcamVideo.srcObject = null;
   frameBuffer = [];
+  if (cooldownTimer) { clearTimeout(cooldownTimer); cooldownTimer = null; }
+  pendingResponse = null;
 
   placard.classList.add('hidden');
   hoverZone.classList.add('hidden');
@@ -243,11 +264,16 @@ function sendFrames(frames, id, signal) {
     return streamResponse(resp);
   }).then(function (text) {
     if (id <= displayedRequestId) return;
-    displayedRequestId = id;
-    setStatus('ok');
-    lastResponseTime = Date.now();
-    updateStatus();
-    renderResponse(text);
+
+    if (cooldownMs > 0 && lastDisplayTime !== null && Date.now() - lastDisplayTime < cooldownMs) {
+      if (!pendingResponse || id > pendingResponse.id) {
+        pendingResponse = { id: id, text: text };
+        scheduleCooldownExpiry();
+      }
+      return;
+    }
+
+    showResponse(id, text);
   }).catch(function (err) {
     if (err.name === 'AbortError') return;
     if (id <= displayedRequestId) return;
@@ -344,6 +370,33 @@ function showLoading() {
   placardContent.innerHTML = '<div class="loading-dots"><span>.</span><span>.</span><span>.</span></div>';
 }
 
+function showResponse(id, text) {
+  displayedRequestId = id;
+  lastDisplayTime = Date.now();
+  pendingResponse = null;
+  setStatus('ok');
+  lastResponseTime = Date.now();
+  updateStatus();
+  renderResponse(text);
+}
+
+function scheduleCooldownExpiry() {
+  if (cooldownTimer) return;
+  var remaining = cooldownMs - (Date.now() - lastDisplayTime);
+  if (remaining <= 0) {
+    flushPendingResponse();
+    return;
+  }
+  cooldownTimer = setTimeout(flushPendingResponse, remaining);
+}
+
+function flushPendingResponse() {
+  cooldownTimer = null;
+  if (pendingResponse) {
+    showResponse(pendingResponse.id, pendingResponse.text);
+  }
+}
+
 function renderResponse(text, errorMsg) {
   if (errorMsg) {
     placardContent.innerHTML = '<p class="error-display">' + escapeHtml(errorMsg) + '</p>';
@@ -361,17 +414,18 @@ function renderResponse(text, errorMsg) {
     try {
       var data = JSON.parse(text);
       if (data && typeof data === 'object' && data.title && data.artist_name && data.medium && data.description) {
+        data.title = data.title.replace(/^\*+/, '').replace(/\*+$/, '');
         placardContent.innerHTML =
           '<h1>' + escapeHtml(data.title) + '</h1>' +
           '<h2 class="artist">' + escapeHtml(data.artist_name) + '</h2>' +
           '<h3>' + escapeHtml(data.medium) + '</h3>' +
-          '<p>' + escapeHtml(data.description).replace(/\n/g, '<br>') + '</p>';
+          '<div class="description">' + marked.parse(data.description) + '</div>';
         return;
       }
     } catch (_) {}
   }
 
-  placardContent.innerHTML = '<p class="raw-text">' + escapeHtml(text) + '</p>';
+  placardContent.innerHTML = '<div class="raw-text">' + marked.parse(text) + '</div>';
 }
 
 // Debug overlay
@@ -438,4 +492,5 @@ function setStatus(state) {
 
 // Init
 
+marked.setOptions({ breaks: true, gfm: true });
 loadSettings();

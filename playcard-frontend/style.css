@@ -105,8 +105,7 @@ body {
   color: #1a1a1a;
 }
 
-.placard-content p.raw-text {
-  white-space: pre-wrap;
+.placard-content .raw-text p {
   font-size: 1.2rem;
   line-height: 1.6;
 }
