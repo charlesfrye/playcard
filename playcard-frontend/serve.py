@@ -18,7 +18,7 @@ PORT = 8000
 
 @app.function(image=image)
 @modal.concurrent(max_inputs=100)
-@modal.web_server(port=PORT)
+@modal.web_server(port=PORT, custom_domains=["playcard.modal.chat"])
 def serve():
     import subprocess
 
