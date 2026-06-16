@@ -1,6 +1,6 @@
 // Constants
 
-const DEFAULT_URL = 'https://modal-labs-charles-dev--playcard-backend-vlmserver.us-west.modal.direct';
+const DEFAULT_URL = 'https://modal-labs--ep-playcard-server.us-west.modal.direct';
 
 const DEFAULT_PROMPT = String.raw`The attached images were taken by a webcam pointing at an exhibition in San Francisco's Gray Area art space.
 
